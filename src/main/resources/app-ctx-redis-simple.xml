@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	   xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd"
+	   default-lazy-init="false">
+	
+	<bean id="kryoSerializer" class="com.github.benhaixiao.commons.serializer.KryoSerializer">
+		<property name="kryoUtils">
+			<bean class="com.github.benhaixiao.commons.serializer.kryo.KryoUtils">
+				<property name="kryoPool" ref="kryoPoolFactoryImpl" />
+			</bean>
+		</property>
+	</bean>
+	<bean id="javaSerializer" class="com.github.benhaixiao.commons.serializer.JavaSerializer" />
+	
+	<!-- 池大小 -->
+	<bean id="kryoConfig" class="org.apache.commons.pool2.impl.GenericObjectPoolConfig">
+		<property name="maxTotal" value="500" />
+		<property name="maxIdle" value="20" />
+		<property name="minIdle" value="5" />
+	</bean>
+
+	<bean id="kryoPoolFactoryImpl"
+		class="com.github.benhaixiao.commons.serializer.kryo.KryoPoolFactoryImpl">
+		<property name="config" ref="kryoConfig" />
+	</bean>
+
+	<!-- kryo 注册 -->
+	<bean id="kryoholder" class="com.github.benhaixiao.commons.serializer.kryo.KryoHolder">
+		<property name="clazs">
+			<list>
+				<value>com.github.benhaixiao.commons.core.domain.data.EntAudioLive</value>
+			</list>
+		</property>
+	</bean>
+
+	<bean id="writeJedisPoolConfig" class="redis.clients.jedis.JedisPoolConfig">
+		<property name="maxTotal" value="300" />
+		<property name="maxIdle" value="300" />
+		<property name="minIdle" value="200" />
+		<property name="maxWaitMillis" value="5000" />
+		<property name="testOnBorrow" value="true" />
+		<property name="testOnReturn" value="false" />
+		<!-- <property name="testWhileIdle" value="true" /> -->
+	</bean>
+
+	<bean id="readJedisPoolConfig" class="redis.clients.jedis.JedisPoolConfig">
+		<property name="maxTotal" value="300" />
+		<property name="maxIdle" value="300" />
+		<property name="minIdle" value="200" />
+		<property name="maxWaitMillis" value="5000" />
+		<property name="testOnBorrow" value="false" />
+		<property name="testOnReturn" value="false" />
+		<!-- <property name="testWhileIdle" value="true" /> -->
+	</bean>
+
+	<bean id="writeJedisPoolMaster" class="redis.clients.jedis.JedisPool">
+		<constructor-arg name="poolConfig" ref="writeJedisPoolConfig" />
+		<constructor-arg name="host" value="${write.live.redis.host}" />
+		<constructor-arg name="port" value="${write.live.redis.port}" />
+		<constructor-arg name="timeout" value="${live.redis.timeout}" />
+	</bean>
+
+	<bean id="writeJedisPoolMgr" class="com.github.benhaixiao.commons.redis.JedisPoolHalbManager">
+		<property name="jedisPools">
+			<list>
+				<ref bean="writeJedisPoolMaster" />
+			</list>
+		</property>
+	</bean>
+
+	<bean id="readJedisPoolMaster" class="redis.clients.jedis.JedisPool">
+		<constructor-arg name="poolConfig" ref="readJedisPoolConfig" />
+		<constructor-arg name="host" value="${read.live.redis.host}" />
+		<constructor-arg name="port" value="${read.live.redis.port}" />
+		<constructor-arg name="timeout" value="${live.redis.timeout}" />
+	</bean>
+
+	<bean id="readJedisPoolMgr" class="com.github.benhaixiao.commons.redis.JedisPoolHalbManager">
+		<property name="jedisPools">
+			<list>
+				<ref bean="readJedisPoolMaster" />
+			</list>
+		</property>
+	</bean>
+
+	<bean id="jedisAudioPoolConfig" class="redis.clients.jedis.JedisPoolConfig">
+		<property name="maxTotal" value="30" />
+		<property name="maxIdle" value="30" />
+		<property name="minIdle" value="20" />
+		<property name="maxWaitMillis" value="5000" />
+		<property name="testOnBorrow" value="true" />
+		<property name="testOnReturn" value="false" />
+	</bean>
+
+	<bean id="readAudioJedisPoolMaster" class="redis.clients.jedis.JedisPool">
+		<constructor-arg name="poolConfig" ref="jedisAudioPoolConfig" />
+		<constructor-arg name="host" value="${read.live.audio.redis.host}" />
+		<constructor-arg name="port" value="${read.live.audio.redis.port}" />
+		<constructor-arg name="timeout" value="${live.redis.timeout}" />
+	</bean>
+
+	<bean id="readAudioJedisPoolSlave" class="redis.clients.jedis.JedisPool">
+		<constructor-arg name="poolConfig" ref="jedisAudioPoolConfig" />
+		<constructor-arg name="host" value="${read.live.audio.redis.host2}" />
+		<constructor-arg name="port" value="${read.live.audio.redis.port2}" />
+		<constructor-arg name="timeout" value="${live.redis.timeout}" />
+	</bean>
+
+	<bean id="readAudioJedisPoolManager" class="com.github.benhaixiao.commons.redis.JedisPoolHalbManager">
+		<property name="jedisPools">
+			<list>
+				<ref bean="readAudioJedisPoolMaster" />
+				<ref bean="readAudioJedisPoolSlave" />
+			</list>
+		</property>
+	</bean>
+
+	<bean id="jedisLock" class="com.github.benhaixiao.commons.redis.lock.JedisLock">
+		<property name="writeJedis" ref="writeJedis"></property>
+	</bean>
+	
+	<bean id="readJedis" class="com.github.benhaixiao.commons.redis.JedisWrapper">
+		<property name="jedisPoolManager" ref="readJedisPoolMgr" />
+		<property name="serializer" ref="kryoSerializer" />
+	</bean>
+	
+	<bean id="writeJedis" class="com.github.benhaixiao.commons.redis.JedisWrapper">
+		<property name="jedisPoolManager" ref="writeJedisPoolMgr" />
+		<property name="serializer" ref="kryoSerializer" />
+	</bean>
+	
+	
+	<bean id="readRRJedisPoolMgr" class="com.github.benhaixiao.commons.redis.JedisPoolHalbRRManager">
+		<constructor-arg name="poolConfig" ref="jedisAudioPoolConfig" />
+		<constructor-arg name="servers" value="${redis.servers}" />
+		<constructor-arg name="timeout" value="${live.redis.timeout}" />
+	</bean>
+</beans>
