@@ -110,7 +110,7 @@ common-redis 是一个支持自定义配置，sentinel哨兵机制的高可用�
                 <value>${redis.sentinel3.host}:${redis.sentinel3.port}</value>
             </set>
         </constructor-arg>
-        <constructor-arg name="poolConfig" ref="sentinelJedisPoolMaster"/>
+        <constructor-arg name="poolConfig" ref="jedisPoolConfig"/>
         <constructor-arg name="timeout" value="${redis.timeout}" type="int"/>
     </bean>
     <!--读最少延时模式  end-->
