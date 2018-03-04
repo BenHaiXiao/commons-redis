@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd">
+    <!-- 加载配置文件 -->
+    <context:property-placeholder location="classpath:application-context-jedis.properties"/>
+    <!--Jedis线程池配置 start-->
+    <bean id="jedisPoolConfig" class="redis.clients.jedis.JedisPoolConfig">
+        <property name="maxTotal" value="300"/>
+        <property name="maxIdle" value="200"/>
+        <property name="minIdle" value="50"/>
+        <property name="maxWaitMillis" value="5000"/>
+        <property name="testOnBorrow" value="true"/>
+        <property name="testOnReturn" value="false"/>
+         <property name="testWhileIdle" value="true" />
+    </bean>
+    <!--Jedis线程池配置 end-->
+
+    <!--哨兵模式  start -->
+    <bean id="sentinelJedisPoolMaster" class="redis.clients.jedis.JedisSentinelPool">
+        <constructor-arg name="masterName" value="${redis.master}"/>
+        <constructor-arg name="sentinels">
+            <set>
+                <value>${redis.sentinel1.host}:${redis.sentinel1.port}</value>
+                <value>${redis.sentinel2.host}:${redis.sentinel2.port}</value>
+                <value>${redis.sentinel3.host}:${redis.sentinel3.port}</value>
+            </set>
+        </constructor-arg>
+        <constructor-arg name="poolConfig" ref="jedisPoolConfig"/>
+        <constructor-arg name="timeout" value="${redis.timeout}" type="int"/>
+    </bean>
+
+    <bean id="sentinelJedisPoolMgr" class="com.github.benhaixiao.commons.redis.JedisPoolHalbManager">
+        <property name="jedisPools">
+            <list>
+                <ref bean="sentinelJedisPoolMaster"/>
+            </list>
+        </property>
+    </bean>
+    <!--哨兵模式  end-->
+
+    <!--主备模式  start-->
+    <bean id="masterJedisPoolMaster" class="redis.clients.jedis.JedisPool">
+        <constructor-arg name="poolConfig" ref="jedisPoolConfig" />
+        <constructor-arg name="host" value="${redis.host1}" />
+        <constructor-arg name="port" value="${redis.port1}" />
+        <constructor-arg name="timeout" value="${redis.timeout}" />
+    </bean>
+
+    <bean id="slaveJedisPoolSlave" class="redis.clients.jedis.JedisPool">
+        <constructor-arg name="poolConfig" ref="jedisPoolConfig" />
+        <constructor-arg name="host" value="${redis.host2}" />
+        <constructor-arg name="port" value="${redis.port2}" />
+        <constructor-arg name="timeout" value="${redis.timeout}" />
+    </bean>
+
+    <bean id="readAndWriteJedisPoolManager" class="com.github.benhaixiao.commons.redis.JedisPoolHalbManager">
+        <property name="jedisPools">
+            <list>
+                <ref bean="masterJedisPoolMaster" />
+                <ref bean="slaveJedisPoolSlave" />
+                <!--注意：第一个必须是主,读写顺序从上至下-->
+            </list>
+        </property>
+    </bean>
+    <!--主备模式  end-->
+
+
+    <!--轮询模式  start-->
+    <bean id="readRRJedisPoolMgr" class="com.github.benhaixiao.commons.redis.JedisPoolHalbRRManager">
+        <constructor-arg name="poolConfig" ref="jedisPoolConfig" />
+        <constructor-arg name="servers" value="${redis.servers}" />
+        <constructor-arg name="timeout" value="${redis.timeout}" />
+    </bean>
+    <!--轮询模式  end-->
+
+
+    <!--读最少延时模式  start-->
+    <bean id="minRRJedisPoolMgr" class="com.github.benhaixiao.commons.redis.JedisSlavePoolManager">
+        <constructor-arg name="masterName" value="${redis.master}"/>
+        <constructor-arg name="sentinels">
+            <set>
+                <value>${redis.sentinel1.host}:${redis.sentinel1.port}</value>
+                <value>${redis.sentinel2.host}:${redis.sentinel2.port}</value>
+                <value>${redis.sentinel3.host}:${redis.sentinel3.port}</value>
+            </set>
+        </constructor-arg>
+        <constructor-arg name="poolConfig" ref="sentinelJedisPoolMaster"/>
+        <constructor-arg name="timeout" value="${redis.timeout}" type="int"/>
+    </bean>
+    <!--读最少延时模式  end-->
+
+
+
+    <bean id="readJedisClient" class="com.github.benhaixiao.commons.redis.JedisWrapper">
+        <!--自行选择上述模式-->
+        <property name="jedisPoolManager" ref="minRRJedisPoolMgr"/>
+    </bean>
+
+    <bean id="writeJedisClient" class="com.github.benhaixiao.commons.redis.JedisWrapper">
+        <!--自行选择上述模式-->
+        <property name="jedisPoolManager" ref="sentinelJedisPoolMgr"/>
+    </bean>
+
+
+
+
+</beans>
